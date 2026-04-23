@@ -1,0 +1,108 @@
+# ============================================================
+# helm/my-app/values.yaml  —  Sample app Helm values for GKE
+# ============================================================
+
+# ------- Image --------------------------------------------------
+image:
+  repository: us-central1-docker.pkg.dev/qwiklabs-gcp-01-3e3d9544735e/my-app-repo/my-app
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+# ------- Replicas & Autoscaling ---------------------------------
+replicaCount: 2
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# ------- Service ------------------------------------------------
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# ------- Ingress ------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: my-app.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: my-app-tls
+      hosts:
+        - my-app.example.com
+
+# ------- Resources ----------------------------------------------
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# ------- Health Checks -----------------------------------------
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 5
+
+# ------- Environment Variables ----------------------------------
+env:
+  - name: APP_ENV
+    value: "production"
+  - name: LOG_LEVEL
+    value: "info"
+  - name: DB_HOST
+    valueFrom:
+      secretKeyRef:
+        name: db-secret
+        key: host
+
+# ------- Node Affinity (target general nodes) ------------------
+nodeSelector:
+  role: general
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - my-app
+          topologyKey: kubernetes.io/hostname
+
+# ------- Service Account ----------------------------------------
+serviceAccount:
+  create: true
+  annotations:
+    iam.gke.io/gcp-service-account: my-app-sa@YOUR_PROJECT.iam.gserviceaccount.com
+
+# ------- Pod Disruption Budget ----------------------------------
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
